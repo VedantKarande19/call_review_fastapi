@@ -1,0 +1,16 @@
+# Web Framework & Async HTTP
+fastapi
+uvicorn
+httpx
+pydantic
+
+# Database & ORM
+sqlalchemy
+psycopg2-binary
+
+# Environment Variables
+python-dotenv
+
+# AI Pipeline SDKs
+groq>=0.4.0
+pyannoteai-sdk>=0.3.0
