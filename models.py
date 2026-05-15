@@ -1,16 +1,3 @@
-# from sqlalchemy import Column, Integer, String, LargeBinary
-# from database import Base
-
-# class AudioRecord(Base):
-#     __tablename__ = "audio_records"
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     audio_id = Column(String, unique=True, index=True, nullable=False)
-#     prompt_id = Column(String, index=True, nullable=False)
-#     audio_file = Column(LargeBinary, nullable=False) # Stores the actual file bytes
-
-
-
 from sqlalchemy import Column, Integer, String, LargeBinary, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -22,6 +9,7 @@ class AudioRecord(Base):
     id = Column(Integer, primary_key=True, index=True)
     audio_id = Column(String, unique=True, index=True, nullable=False)
     prompt_id = Column(String, index=True, nullable=False)
+    source_url = Column(String, nullable=False)  # <-- NEW: Save the link for Pyannote
     audio_file = Column(LargeBinary, nullable=False)
     status = Column(String, default="pending") 
 

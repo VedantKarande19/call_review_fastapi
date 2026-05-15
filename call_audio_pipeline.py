@@ -34,11 +34,23 @@ def _segments_to_pseudo_words(tr: Any) -> list[dict[str, Any]]:
             if t: out.append({"text": t, "start": float(seg["start"]), "end": float(seg["end"])})
     return out
 
-def run_diarization(pyannote_key: str, audio_path: Path, num_speakers: int = 2) -> list[dict[str, Any]]:
+def run_diarization(pyannote_key: str, audio_url: str, audio_path: Path, num_speakers: int = 2) -> list[dict[str, Any]]:
     from pyannoteai.sdk import Client
     client = Client(pyannote_key)
-    media_url = client.upload(audio_path)
-    job_id = client.diarize(media_url, model="community-1", num_speakers=num_speakers)
+    try:
+        # ATTEMPT 1: The Fast Route (URL)
+        print(f"[Pyannote] Attempting to diarize using direct URL...")
+        job_id = client.diarize(audio_url, model="community-1", num_speakers=num_speakers)
+        
+    except Exception as e:
+        # ATTEMPT 2: The Fallback Route (Local File Upload)
+        print(f"[Pyannote] URL access failed ({str(e)}). Falling back to local file upload...")
+        
+        # Upload the temporary file we already created for Groq
+        media_url = client.upload(audio_path) 
+        job_id = client.diarize(media_url, model="community-1", num_speakers=num_speakers)
+        
+    # Wait for the job to finish and retrieve results
     diarization = client.retrieve(job_id)
     return diarization["output"]["diarization"]
 
@@ -71,14 +83,14 @@ def run_groq_translate_words(groq_key: str, audio_path: Path) -> tuple[list[dict
         
     return words, text.strip()
 
-def process_call_recording(audio_path: Path, num_speakers: int = 2, merge_gap: float = 0.9, agent_speaker: str | None = None, strict_two: bool = False) -> dict[str, Any]:
+def process_call_recording(audio_url: str, audio_path: Path, num_speakers: int = 2, merge_gap: float = 0.9, agent_speaker: str | None = None, strict_two: bool = False) -> dict[str, Any]:
     pyannote_key = os.getenv("PYANNOTE_API_KEY")
     groq_key = os.getenv("GROQ_API_KEY")
     
     if not pyannote_key: raise ValueError("Set PYANNOTE_API_KEY in .env")
     if not groq_key: raise ValueError("Set GROQ_API_KEY in .env")
 
-    diar = run_diarization(pyannote_key, audio_path, num_speakers=num_speakers)
+    diar = run_diarization(pyannote_key, audio_url, audio_path, num_speakers=num_speakers)
     words, english = run_groq_translate_words(groq_key, audio_path)
 
     combined: dict[str, Any] = {

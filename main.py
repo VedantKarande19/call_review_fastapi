@@ -26,23 +26,24 @@ class AudioRequest(BaseModel):
 def process_audio_background(audio_id: str):
     db = SessionLocal()
     try:
-        # Fetch the pending audio record
         record = db.query(models.AudioRecord).filter(models.AudioRecord.audio_id == audio_id).first()
         if not record: return
             
         record.status = "processing"
         db.commit()
 
-        # Write BYTEA to temp file for pipeline.py
+        # Temp file for Groq
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
             tmp_file.write(record.audio_file)
             tmp_path = Path(tmp_file.name)
 
         try:
-            # Pass the temp file path to your custom pipeline
-            ai_results = process_call_recording(tmp_path)
+            # 🚀 Pass BOTH the original URL and the temp path
+            ai_results = process_call_recording(
+                audio_url=record.source_url, 
+                audio_path=tmp_path
+            )
             
-            # Save results to the new TranscriptResult table
             new_transcript = models.TranscriptResult(
                 audio_id=audio_id,
                 transcript_text=ai_results.get("text", ""),
@@ -50,7 +51,6 @@ def process_audio_background(audio_id: str):
                 transcript_json=ai_results.get("combined_json", {})
             )
             db.add(new_transcript)
-            
             record.status = "completed"
             db.commit()
             
@@ -61,7 +61,6 @@ def process_audio_background(audio_id: str):
         finally:
             if tmp_path.exists():
                 os.remove(tmp_path)
-                
     finally:
         db.close()
 
@@ -80,6 +79,7 @@ async def process_audio(request: AudioRequest, background_tasks: BackgroundTasks
                 new_record = models.AudioRecord(
                     audio_id=unique_audio_id,
                     prompt_id=request.prompt_id,
+                    source_url=link, # <-- Save the URL to the DB here
                     audio_file=response.content,
                     status="pending"
                 )
