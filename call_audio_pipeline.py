@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from groq import APIStatusError, Groq
 
 # Import the alignment function from our module
@@ -41,16 +41,12 @@ def run_diarization(pyannote_key: str, audio_url: str, audio_path: Path, num_spe
         # ATTEMPT 1: The Fast Route (URL)
         print(f"[Pyannote] Attempting to diarize using direct URL...")
         job_id = client.diarize(audio_url, model="community-1", num_speakers=num_speakers)
-        
     except Exception as e:
         # ATTEMPT 2: The Fallback Route (Local File Upload)
         print(f"[Pyannote] URL access failed ({str(e)}). Falling back to local file upload...")
-        
-        # Upload the temporary file we already created for Groq
-        media_url = client.upload(audio_path) 
+        media_url = client.upload(audio_path)
         job_id = client.diarize(media_url, model="community-1", num_speakers=num_speakers)
-        
-    # Wait for the job to finish and retrieve results
+
     diarization = client.retrieve(job_id)
     return diarization["output"]["diarization"]
 
@@ -83,21 +79,36 @@ def run_groq_translate_words(groq_key: str, audio_path: Path) -> tuple[list[dict
         
     return words, text.strip()
 
-def process_call_recording(audio_url: str, audio_path: Path, num_speakers: int = 2, merge_gap: float = 0.9, agent_speaker: str | None = None, strict_two: bool = False) -> dict[str, Any]:
+def process_call_recording(
+    audio_url: str,
+    audio_path: Path,
+    num_speakers: int = 2,
+    merge_gap: float = 0.9,
+    agent_speaker: str | None = None,
+    strict_two: bool = False,
+    on_stage: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
     pyannote_key = os.getenv("PYANNOTE_API_KEY")
     groq_key = os.getenv("GROQ_API_KEY")
     
     if not pyannote_key: raise ValueError("Set PYANNOTE_API_KEY in .env")
     if not groq_key: raise ValueError("Set GROQ_API_KEY in .env")
 
+    if on_stage:
+        on_stage("processing_diarization")
     diar = run_diarization(pyannote_key, audio_url, audio_path, num_speakers=num_speakers)
+
+    if on_stage:
+        on_stage("processing_transcription")
     words, english = run_groq_translate_words(groq_key, audio_path)
 
     combined: dict[str, Any] = {
         "diarization": diar,
         "wordLevelTranscription": words,
     }
-    
+
+    if on_stage:
+        on_stage("processing_alignment")
     aligned = align_combined_data(combined, merge_gap=merge_gap, agent_speaker=agent_speaker, strict_two=strict_two)
     
     return {
