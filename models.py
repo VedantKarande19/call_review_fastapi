@@ -3,17 +3,19 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from database import Base
 
+
 class AudioRecord(Base):
     __tablename__ = "audio_records"
 
     id = Column(Integer, primary_key=True, index=True)
     audio_id = Column(String, unique=True, index=True, nullable=False)
     prompt_id = Column(String, index=True, nullable=False)
-    source_url = Column(String, nullable=False)  # <-- NEW: Save the link for Pyannote
-    audio_file = Column(LargeBinary, nullable=False)
-    status = Column(String, default="pending") 
+    source_url = Column(Text, nullable=True)
+    audio_file = Column(LargeBinary, nullable=True)
+    status = Column(String, default="pending_download")
+    error_detail = Column(Text, nullable=True)
+    notify_url = Column(Text, nullable=True)
 
-    # Link to the transcript table
     transcript = relationship("TranscriptResult", back_populates="audio", uselist=False)
 
 
@@ -22,10 +24,8 @@ class TranscriptResult(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     audio_id = Column(String, ForeignKey("audio_records.audio_id"), unique=True, nullable=False)
-    
-    transcript_text = Column(Text, nullable=True)     # Clean Agent/Customer text
-    english_translation = Column(Text, nullable=True) # Raw translation text
-    transcript_json = Column(JSONB, nullable=True)    # The complete JSON response
+    transcript_text = Column(Text, nullable=True)
+    english_translation = Column(Text, nullable=True)
+    transcript_json = Column(JSONB, nullable=True)
 
-    # Link back to the audio record
     audio = relationship("AudioRecord", back_populates="transcript")
